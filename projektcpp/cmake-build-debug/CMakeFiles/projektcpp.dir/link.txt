@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/projektcpp.dir/main.cpp.o -o projektcpp  -lsqlite3 -lwiringPi 

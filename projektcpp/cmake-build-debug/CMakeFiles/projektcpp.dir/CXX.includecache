@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/kvitajin/Codes/osrc/projektcpp/main.cpp
+iostream
+-
+sqlite3.h
+-
+thread
+-
+sstream
+-
+ctime
+-
+cstring
+-
+vector
+-
+iomanip
+-
+
