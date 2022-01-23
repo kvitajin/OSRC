@@ -1,13 +1,19 @@
 #include <iostream>
-#include <sqlite3.h>
 #include <thread>
 #include <sstream>
 #include <ctime>
 #include <cstring>
 #include <vector>
 #include <iomanip>
-#include <wiringpi.h>
+#include <wiringPi.h>
 #include <pthread.h>
+
+#ifdef __x86_64
+    #include <sqlite3.h>
+#endif
+#ifdef __arm__
+    #include "/usr/include/sqlite3.h"
+#endif
 
 
 
