@@ -98,6 +98,9 @@ projektcpp_EXTERNAL_OBJECTS =
 
 projektcpp: CMakeFiles/projektcpp.dir/main.cpp.o
 projektcpp: CMakeFiles/projektcpp.dir/build.make
+projektcpp: /usr/lib/arm-linux-gnueabihf/libsqlite3.so
+projektcpp: /usr/lib/libwiringPi.so
+projektcpp: /usr/lib/arm-linux-gnueabihf/librt.so
 projektcpp: CMakeFiles/projektcpp.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/tmp/tmp.93UDAros2A/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable projektcpp"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/projektcpp.dir/link.txt --verbose=$(VERBOSE)

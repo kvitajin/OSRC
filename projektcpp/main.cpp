@@ -1,23 +1,32 @@
 #include <iostream>
-#include <sqlite3.h>
 #include <thread>
 #include <sstream>
 #include <ctime>
 #include <cstring>
 #include <vector>
 #include <iomanip>
-#include <wiringpi.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <mutex>
+
+#ifdef __x86_64
+    #include <sqlite3.h>
+    #include <wiringPi.h>
+#endif
+#ifdef __arm__
+    #include "/usr/include/sqlite3.h"
+    #include "/usr/include/wiringPi.h"
+    #include "/usr/include/pigpio.h"
+#endif
 
 
-
+std::mutex locker;
 using namespace std;
 #define PIN	3
 #define SECOND 1000
 #define MICRO_SIEVERT 151
 #define BUFF_SIZE 20
-volatile unsigned int IOcounter;
-pthread_mutex_t lock;
+int pulses=0;
 
 class CircleBuff{
 public:
@@ -124,46 +133,44 @@ void FloatingAVG(int N, CircleBuff &buff){
 }
 
 
-void IOCountInterupt( void )
-{
+void DBInterrupt(int &pulses){
+    auto next = std::chrono::system_clock::now()+1s;
+    while (true){
+        std::this_thread::sleep_until(next);
+        next+=1s;
+        write2db(pulses);
+        locker.lock();
+        pulses=0;
+        locker.unlock();
+    }
+}
+
+void PulsesInterrupt(int &pulses){
+    while (true){
+        if(digitalRead(PIN) == HIGH){
+            locker.lock();
+            pulses += 1;
+            locker.unlock();
+        }
+    }
+}
+void IOInterrupt(){
     if(digitalRead(PIN) == HIGH){
-        pthread_mutex_lock(&lock);
-        IOcounter += 1;
-        pthread_mutex_unlock(&lock);
+        locker.lock();
+        pulses += 1;
+        locker.unlock();
     }
 }
-
-void IOThread( void* IOThreadArgument )
-{
-    //zde je důležité časování proto co nejjednodužší
-    int secCounter = IOcounter;
-    pthread_mutex_lock(&lock);
-    IOcounter = 0;
-    pthread_mutex_unlock(&lock);
-    delayMicroseconds(SECOND);
-}
-
-void MeasureThread( void* IOThreadArgument )
-{
-    int minutSum;
-    for(int i = 0; i < 60; i++)
-    {
-        minutSum += minutSum;//zde se budou vzčítat data z databáze
-    }
-    int radiation;
-    radiation = minutSum/MICRO_SIEVERT;
-    //zápis do databáze
-
-    delayMicroseconds(SECOND);
-}
-
 int main() {
-    CircleBuff buff;
-    for (int i = 0; i < 5; ++i) {
-        write2db(i);
-        sleep(SECOND);
-    }
-    write2db(1);
-//    readLastN(5);
-    return 0;
+
+    wiringPiSetup();
+    wiringPiISR(PIN, INT_EDGE_RISING, IOInterrupt);
+
+//    int pulses = 0;
+
+//    std::thread measurement = std::thread(PulsesInterrupt,std::ref(pulses));
+    std::thread dbWrite = std::thread(DBInterrupt,std::ref(pulses));
+
+    return EXIT_SUCCESS;
+
 }

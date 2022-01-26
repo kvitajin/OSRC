@@ -1,1 +1,1 @@
-/usr/bin/c++ -g CMakeFiles/projektcpp.dir/main.cpp.o -o projektcpp  -lsqlite3 -lwiringPi 
+/usr/bin/c++ -g CMakeFiles/projektcpp.dir/main.cpp.o -o projektcpp  /usr/lib/arm-linux-gnueabihf/libsqlite3.so /usr/lib/libwiringPi.so /usr/lib/arm-linux-gnueabihf/librt.so -lpthread 
