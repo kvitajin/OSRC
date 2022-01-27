@@ -1,0 +1,3 @@
+/home/kvitajin/Codes/osrc/paralelFishes/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/kvitajin/Codes/osrc/paralelFishes/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/kvitajin/Codes/osrc/paralelFishes/cmake-build-debug/CMakeFiles/paralelFishes.dir
