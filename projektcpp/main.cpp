@@ -5,36 +5,39 @@
 #include <cstring>
 #include <vector>
 #include <iomanip>
-#include <wiringPi.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <mutex>
 
 #ifdef __x86_64
     #include <sqlite3.h>
+    #include <wiringPi.h>
 #endif
 #ifdef __arm__
     #include "/usr/include/sqlite3.h"
+    #include "/usr/include/wiringPi.h"
+    #include "/usr/include/pigpio.h"
 #endif
 
 
-
+std::mutex locker;
 using namespace std;
-#define PIN	3
+#define PIN	8           //wiringpi 8 a bcm 3
 #define SECOND 1000
 #define MICRO_SIEVERT 151
-#define BUFF_SIZE 20
-volatile unsigned int IOcounter;
-pthread_mutex_t lock;
+#define BUFF_SIZE 100
+int pulses=0;
 
 class CircleBuff{
 public:
     double data[BUFF_SIZE]={0};
-    time_t time[BUFF_SIZE]={0};
+    std::string time[BUFF_SIZE];
     int writePos=0;
 };
 class DataCell{
 public:
     int id;
-    time_t date;
+    std::string date;
     int pulses;
 };
 std::vector<DataCell> measuredData;
@@ -75,6 +78,11 @@ int write2db(int value){
     sqlite3_close(db);
     return 0;
 }
+std::string getReadableTime(time_t time){
+    std::string s(17, '\0');
+    std::strftime(&s[0], s.size(), "%H:%M %d.%m.%Y ", std::localtime(&time));
+    return s;
+}
 
 int readLastN(int N){
     int err = 1;
@@ -97,14 +105,17 @@ int readLastN(int N){
     }
     int ret_code = 0;
     DataCell tmp{};
+    time_t timeTmp;
+    measuredData.clear();
     while((ret_code = sqlite3_step(stmt)) == SQLITE_ROW) {
         tmp.id      = sqlite3_column_int(stmt, 0);
-        tmp.date    = sqlite3_column_int(stmt, 1);;
+        tmp.date    = getReadableTime(sqlite3_column_int(stmt, 1));
         tmp.pulses  = sqlite3_column_int(stmt, 2);
         measuredData.push_back(tmp);
-        std::cout<<"id: "<< sqlite3_column_int(stmt, 0)<<" time: "<< sqlite3_column_text(stmt, 1)<<" pulses: "<<sqlite3_column_int(stmt, 2)<<std::endl;
-//        printf("TEST: id = %d\n", sqlite3_column_int(stmt, 0));
     }
+//    for (auto & i : measuredData) {
+//        std::cout<<"id: "<< i.id<<" time: "<< i.date<<" pulses: "<<i.pulses<<std::endl;
+//    }
     if(ret_code != SQLITE_DONE) {
         //this error handling could be done better, but it works
         printf("ERROR: while performing sql: %s\n", sqlite3_errmsg(db));
@@ -115,7 +126,7 @@ int readLastN(int N){
     return 0;
 }
 
-void FloatingAVG(int N, CircleBuff &buff){
+void floatingAVG(int N, CircleBuff &buff){
     if (!N){
         return;
     }
@@ -123,53 +134,68 @@ void FloatingAVG(int N, CircleBuff &buff){
     for (unsigned long i = measuredData.size()-N; i < measuredData.size(); ++i) {
         tmp+=measuredData[i].pulses;
     }
-
     buff.data[buff.writePos]=tmp/N;
-    buff.time[buff.writePos]=measuredData[measuredData.size()].date;
+    buff.time[buff.writePos]=measuredData[measuredData.size()-1].date;
     buff.writePos = ++buff.writePos%BUFF_SIZE;
 }
 
 
-void IOCountInterupt( void )
-{
+void DBInterrupt(){
+    auto next = std::chrono::system_clock::now()+1s;
+    while (true){
+        std::this_thread::sleep_until(next);
+        next+=1s;
+        write2db(pulses);
+        locker.lock();
+        pulses=0;
+        locker.unlock();
+    }
+}
+
+void PulsesInterrupt(){
+    while (true){
+        waitForInterrupt(PIN, -1);
+        locker.lock();
+        pulses += 1;
+        locker.unlock();
+        std::cout<<"aaaa"<<std::endl;
+    }
+}
+void IOInterrupt(){
     if(digitalRead(PIN) == HIGH){
-        pthread_mutex_lock(&lock);
-        IOcounter += 1;
-        pthread_mutex_unlock(&lock);
+        locker.lock();
+        pulses += 1;
+        locker.unlock();
     }
 }
 
-void IOThread( void* IOThreadArgument )
-{
-    //zde je důležité časování proto co nejjednodužší
-    int secCounter = IOcounter;
-    pthread_mutex_lock(&lock);
-    IOcounter = 0;
-    pthread_mutex_unlock(&lock);
-    delayMicroseconds(SECOND);
-}
-
-void MeasureThread( void* IOThreadArgument )
-{
-    int minutSum;
-    for(int i = 0; i < 60; i++)
-    {
-        minutSum += minutSum;//zde se budou vzčítat data z databáze
+void dataPrint(bool valueXavg, int numberOfMinutes){
+    readLastN(60*numberOfMinutes);
+    if (valueXavg){
+        for (int i = 0; i < numberOfMinutes; ++i) {
+            double minSum=0;
+            for (int j = 0; j < 60; ++j) {
+                minSum+= measuredData[(i*60)+j].pulses;
+            }
+            std::cout << "Date: "<< measuredData[60*i].date << " Value: " << minSum/MICRO_SIEVERT<<" μSv"<<std::endl;
+        }
     }
-    int radiation;
-    radiation = minutSum/MICRO_SIEVERT;
-    //zápis do databáze
-
-    delayMicroseconds(SECOND);
 }
-
 int main() {
-    CircleBuff buff;
-    for (int i = 0; i < 5; ++i) {
-        write2db(i);
-        sleep(SECOND);
+    wiringPiSetup();
+    wiringPiISR(PIN, INT_EDGE_RISING, IOInterrupt);
+
+//    floatingAVG(10, buff);
+    std::thread measurement = std::thread(PulsesInterrupt);
+    std::thread dbWrite = std::thread(DBInterrupt);
+    readLastN(100);
+    dataPrint(true, 5);
+    while (1){
+        delayMicroseconds(60*SECOND);
+
     }
-    write2db(1);
-//    readLastN(5);
-    return 0;
+
+
+    return EXIT_SUCCESS;
+
 }
