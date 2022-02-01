@@ -5,9 +5,6 @@
 
 std::random_device rd;
 
-void fishRotation(){
-    
-}
 
 bool inputValidation(int fishes, int sizeX, int sizeY){
     if (sizeX<2 || sizeY < 2 ){
@@ -65,8 +62,85 @@ void fillAq(int fishes,std::vector<std::vector<char>>& aquarium){
 
     }
 }
+class Fish{
+    int x, y;
+    bool direction;
+//    int color;  //priprava na barvu
+public:
+    Fish(int x, int y, bool direction) : x(x), y(y), direction(direction) {}
+
+    void rotate(std::vector<std::vector<char>>& aquarium){
+        if (this->direction){
+            aquarium[this->x][this->y-1]='X';
+            aquarium[this->x][this->y+1]='>';
+        }
+        else {
+            aquarium[this->x][this->y-1]='<';
+            aquarium[this->x][this->y+1]='X';
+        }
+        this->direction=! this->direction;
+    }
+    void move(std::vector<std::vector<char>>& aquarium){    //neotestovano
+        if (this->direction){
+            if (this->y-2=='H'){
+                rotate(aquarium);
+            }
+            else {
+                this->y-=1;
+                aquarium[this->x][this->y-1]='<';
+                aquarium[this->x][this->y]='O';
+                aquarium[this->x][this->y+1]='X';
+                aquarium[this->x][this->y+2]=' ';
+            }
+        }
+        else{
+            if (this->y+2=='H'){
+                rotate(aquarium);
+            }
+            else {
+                this->y+=1;
+                aquarium[this->x][this->y-2]=' ';
+                aquarium[this->x][this->y-1]='X';
+                aquarium[this->x][this->y]='O';
+                aquarium[this->x][this->y+1]='>';
+            }
+        }
+    }
+};
+void printAq(std::vector<std::vector<char>>& aquarium){
+    for (auto & i : aquarium) {
+        for (char j : i) {
+            std::cout<< j;
+        }
+        std::cout<< std::endl;
+    }
+}
+void endOfStep(std::vector<std::vector<char>>& aquarium){
+    #if defined(_WIN_32)
+        system("cls")
+    #endif
+    #if defined(linux)
+        std::cout << "\033[2J\033[1;1H";
+    #endif
+    printAq(aquarium);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+}
+
 void fishLogic(int x, int y, bool direction, std::vector<std::vector<char>>& aquarium){
-    
+    Fish fish(x, y, direction);
+    if (direction){
+        aquarium[x][y-1]='<';
+        aquarium[x][y]='O';
+        aquarium[x][y+1]='X';
+    } else{
+        aquarium[x][y-1]='X';
+        aquarium[x][y]='O';
+        aquarium[x][y+1]='>';
+    }
+//    while (true) {
+//        fish.move(aquarium);
+//    }
 }
 
 void pFillAq(int fishes,std::vector<std::vector<char>>& aquarium, std::vector<std::thread> &pFishes){
@@ -79,21 +153,16 @@ void pFillAq(int fishes,std::vector<std::vector<char>>& aquarium, std::vector<st
                 pFishes.emplace_back(std::thread(fishLogic, x, y, true, std::ref(aquarium)));
             }
             else{       //ryba kouka na opacnou stranu
-                pFishes.emplace_back(std::thread(fishLogic, x, y, true, std::ref(aquarium)));
+                pFishes.emplace_back(std::thread(fishLogic, x, y, false, std::ref(aquarium)));
             }
         }
         else        {
             --i;
         }
-    }
-}
-
-void printAq(std::vector<std::vector<char>>& aquarium){
-    for (auto & i : aquarium) {
-        for (char j : i) {
-            std::cout<< j;
+        for (std::thread & fish : pFishes){
+            if (fish.joinable())
+                fish.join();
         }
-        std::cout<< std::endl;
     }
 }
 int main() {
@@ -111,8 +180,8 @@ int main() {
     std::vector<std::vector<char>> aquarium;
     std::vector<std::thread> pFishes;
     makeAquarium(sizeX, sizeY, aquarium);
-    fillAq(fishes, aquarium);
+    pFillAq(fishes, aquarium, pFishes);
     printAq(aquarium);
-
+    //TODO obarvit rybky https://gist.github.com/vratiu/9780109
     return 0;
 }
